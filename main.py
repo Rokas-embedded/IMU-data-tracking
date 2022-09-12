@@ -4,11 +4,13 @@ import json
 from msilib.schema import Error
 from pickle import FALSE
 from tkinter import W
+from tkinter.ttk import Style
 import numpy as np
 import PySimpleGUI as sg
 import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib import style
 import threading
 from random import randint
 import time
@@ -16,11 +18,14 @@ import serial.tools.list_ports
 import json 
 
 # matplotlib.use("TkAgg")
-
+style.use("ggplot")
 fig_agg = False
 pltFig = False
 window = False
 dataSize = 1000
+x_accel_graph = False
+y_accel_graph = False
+z_accel_graph = False
 
 # Define the window layout
 port_config_collumn = [
@@ -46,12 +51,17 @@ plot_collumn = [
     [
         sg.Canvas(key="-CANVAS-")
     ],
+    # [
+    #     sg.Canvas(key="-CANVAS-")
+    # ],
+    
 ]
 
 layout = [
     [
         sg.Column(port_config_collumn),
         sg.VSeperator(),
+        sg.Column(plot_collumn),
         sg.Column(plot_collumn),
     ],
 ]
@@ -66,7 +76,7 @@ window = sg.Window(
 )
 
 
-duration = 0.010
+duration = 0.1
 def the_thread(window):
 
     global duration
@@ -87,12 +97,13 @@ started = False
 baud_rate = 0
 serialInst = serial.Serial()
 
-accel_x_readings = []
-accel_x_readings_size = 1000
-accel_y_readings = []
-accel_y_readings_size = 1000
-accel_z_readings = []
-accel_z_readings_size = 1000
+accel_x_readings_size = 500
+accel_x_readings = [0] * (accel_x_readings_size-1)
+accel_y_readings_size = 500
+accel_y_readings = [0] * (accel_y_readings_size-1)
+accel_z_readings_size = 500
+accel_z_readings = [0] * (accel_z_readings_size-1)
+
 
 def read_message(message):
     accel_x = 0
@@ -101,9 +112,7 @@ def read_message(message):
 
     # ACCEL, 3.44, 464.5, 46461, 
     try:
-        print(message)
         message_split = message.split(', ')
-        
 
         accel_x = float(message_split[1])
         accel_x_readings.append(accel_x)
@@ -115,22 +124,17 @@ def read_message(message):
         accel_y_readings.append(accel_y)
         if(len(accel_y_readings) == accel_y_readings_size):
             accel_y_readings.pop(0)
-        
+
+
         accel_z = float(message_split[3])
         accel_z_readings.append(accel_z)
         if(len(accel_z_readings) == accel_z_readings_size):
             accel_z_readings.pop(0)
 
-        # fig = matplotlib.figure.Figure(figsize=(10, 5), dpi=100)
-        # t = np.arange(0, 3, .01)
-        # fig.add_subplot(111).plot(t, 2 * np.sin(2 * np.pi * t))
-        # draw_figure(window["-CANVAS-"].TKCanvas, fig)
-
     except:
         print("error serial")
     
     
-    # print("ACCEL: " + str(accel_x) + " " + str(accel_y) + " " + str(accel_z))
     
     return
 
@@ -157,30 +161,41 @@ def makeSynthData():
 def drawChart():
     global fig_agg
     global pltFig
+    global x_accel_graph
+    global y_accel_graph
+    global z_accel_graph
+
 
     pltFig = plt.figure()
-    # dataXY = makeSynthData()
-    # plt.plot(dataXY[0], dataXY[1], '.k')
-    plt.plot(accel_x_readings)
+    x_accel_graph = plt.plot(accel_x_readings)
+    y_accel_graph = plt.plot(accel_y_readings)
+    z_accel_graph = plt.plot(accel_z_readings)
     plt.ylim(-2,2)
 
     fig_agg = draw_figure(window["-CANVAS-"].TKCanvas, pltFig)
-    # print(json.dumps(fig_agg))
     return
 
 def updateChart():
     global fig_agg
     global pltFig
+    global x_accel_graph
+    global y_accel_graph
+    global z_accel_graph
 
-    fig_agg.get_tk_widget().forget()
-    # dataXY = makeSynthData()
-    # plt.cla()
+    # Redrawing the plots works very good
     plt.clf()
-    # plt.plot(dataXY[0], dataXY[1], '.k')
-    plt.plot(accel_x_readings)
+    x_accel_graph = plt.plot(accel_x_readings)
+    x_accel_graph = plt.plot(accel_y_readings)
+    x_accel_graph = plt.plot(accel_z_readings)
     plt.ylim(-2,2)
 
-    fig_agg = draw_figure(window['-CANVAS-'].TKCanvas, pltFig)
+    # this is too slow
+
+    # pltFig.canvas.draw_idle()
+    # fig_agg.get_tk_widget().forget()
+    # fig_agg = draw_figure(window['-CANVAS-'].TKCanvas, pltFig)
+    pltFig.canvas.draw()
+
 
 drawChart()
 # Run the Event Loop
