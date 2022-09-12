@@ -5,6 +5,7 @@ from msilib.schema import Error
 from pickle import FALSE
 from tkinter import W
 from tkinter.ttk import Style
+from turtle import update
 import numpy as np
 import PySimpleGUI as sg
 import matplotlib
@@ -16,16 +17,24 @@ from random import randint
 import time
 import serial.tools.list_ports
 import json 
+import numpy as np
+import matplotlib.pyplot as plt
+import scipy.io as sio
+from scipy import signal
+from matplotlib.pyplot import figure
+import scipy
+import copy
 
-# matplotlib.use("TkAgg")
-style.use("ggplot")
-fig_agg = False
-pltFig = False
+accel_fig_agg = False
+accel_pltFig = False
+freq_fig_agg = False
+freq_pltFig = False
 window = False
 dataSize = 1000
-x_accel_graph = False
-y_accel_graph = False
-z_accel_graph = False
+frequencies = [0] * 500
+accel_graph = 0
+frequency_graph = 1
+
 
 # Define the window layout
 port_config_collumn = [
@@ -42,26 +51,27 @@ port_config_collumn = [
     ],
     [
         sg.Listbox(
-            values=[], enable_events=True, size=(40, 20), key="-COM LIST-"
+            values=[], enable_events=True, size=(25, 20), key="-COM LIST-"
         )
     ]
 ]
 
 plot_collumn = [
     [
-        sg.Canvas(key="-CANVAS-")
+        sg.Button("TIME-FREQUENCY", key="-TIME FREQUENCY-")
     ],
-    # [
-    #     sg.Canvas(key="-CANVAS-")
-    # ],
-    
+    [
+        sg.Canvas(key="-ACCELERATION-")
+    ],
+    [
+        sg.Canvas(key="-TIME FREQUENCY PLOT-")
+    ],
 ]
 
 layout = [
     [
         sg.Column(port_config_collumn),
         sg.VSeperator(),
-        sg.Column(plot_collumn),
         sg.Column(plot_collumn),
     ],
 ]
@@ -103,6 +113,7 @@ accel_y_readings_size = 500
 accel_y_readings = [0] * (accel_y_readings_size-1)
 accel_z_readings_size = 500
 accel_z_readings = [0] * (accel_z_readings_size-1)
+
 
 
 def read_message(message):
@@ -158,46 +169,83 @@ def makeSynthData():
     yData = np.linspace(0, dataSize, num=dataSize, dtype=int)
     return (xData, yData)
 
-def drawChart():
-    global fig_agg
-    global pltFig
-    global x_accel_graph
-    global y_accel_graph
-    global z_accel_graph
+def drawChart(chart):
+    global accel_fig_agg
+    global accel_pltFig
+    
+    global freq_fig_agg
+    global freq_pltFig
 
+    if(chart == 0):
+        accel_pltFig = plt.figure(figsize=(15, 3))
+        plt.plot(accel_y_readings,label='ac_Y')
+        plt.plot(accel_z_readings,label='ac_Z')
+        plt.legend(loc='upper left', ncol=3)
+        plt.xlabel('Time')
+        plt.ylabel("G's")
+        plt.ylim(0.5,1.5)
+        plt.ylim(-2,2)
+        plt.grid()
+        accel_fig_agg = draw_figure(window["-ACCELERATION-"].TKCanvas, accel_pltFig)
+    elif(chart == 1):
+        freq_pltFig = plt.figure(figsize=(15, 3))
+        plt.plot(frequencies)
+        plt.xlabel('Frequency')
+        plt.ylabel("Power")
+        plt.xlim(0,800)
+        plt.ylim(-0.1,1)
+        plt.grid()
 
-    pltFig = plt.figure()
-    x_accel_graph = plt.plot(accel_x_readings)
-    y_accel_graph = plt.plot(accel_y_readings)
-    z_accel_graph = plt.plot(accel_z_readings)
-    plt.ylim(-2,2)
-
-    fig_agg = draw_figure(window["-CANVAS-"].TKCanvas, pltFig)
+        freq_fig_agg = draw_figure(window["-TIME FREQUENCY PLOT-"].TKCanvas, freq_pltFig)
+    
     return
 
-def updateChart():
-    global fig_agg
-    global pltFig
-    global x_accel_graph
-    global y_accel_graph
-    global z_accel_graph
+def updateChart(chart):
+    global accel_fig_agg
+    global accel_pltFig
 
-    # Redrawing the plots works very good
-    plt.clf()
-    x_accel_graph = plt.plot(accel_x_readings)
-    x_accel_graph = plt.plot(accel_y_readings)
-    x_accel_graph = plt.plot(accel_z_readings)
-    plt.ylim(-2,2)
+    global freq_fig_agg
+    global freq_pltFig
 
-    # this is too slow
+    if(chart == 0):
+            
+        # Redrawing the plots works very good
+        plt.figure(accel_pltFig.number)
+        plt.clf()
+        plt.plot(accel_x_readings,label='ac_X')
+        plt.plot(accel_y_readings,label='ac_Y')
+        plt.plot(accel_z_readings,label='ac_Z')
+        plt.legend(loc='upper left', ncol=3)
+        plt.xlabel('Time')
+        plt.ylabel("G's")
+        plt.ylim(-2,2)
+        # plt.ylim(0.5,1.5)
+        plt.grid()
+        accel_pltFig.canvas.draw()
 
-    # pltFig.canvas.draw_idle()
-    # fig_agg.get_tk_widget().forget()
-    # fig_agg = draw_figure(window['-CANVAS-'].TKCanvas, pltFig)
-    pltFig.canvas.draw()
+    elif(chart == 1):
+        plt.figure(freq_pltFig.number)
+
+        plt.clf()
+        plt.plot(frequencies)
+        plt.xlabel('Frequency')
+        plt.ylabel("Power")
+        plt.xlim(0,800)
+        plt.ylim(-0.1,1)
+        plt.grid()
+
+        freq_pltFig.canvas.draw()
+
+def make_frequency_graph():
+    global frequencies
+    frequencies = copy.deepcopy(accel_z_readings)
+    frequencies = np.abs(scipy.fft.fft(frequencies))**2
+    updateChart(frequency_graph)
 
 
-drawChart()
+drawChart(accel_graph)
+drawChart(frequency_graph)
+
 # Run the Event Loop
 while True:
 
@@ -245,6 +293,9 @@ while True:
                 window["-BAUD-"].update(str(baud_rate))
                 break
 
+    elif event == "-TIME FREQUENCY-":
+        make_frequency_graph()
+
     elif event == "-THREAD-":
         serial_ports = serial.tools.list_ports.comports()
 
@@ -257,7 +308,7 @@ while True:
         if(started):
             while serialInst.in_waiting:
                 read_message(serialInst.readline().decode('utf'))
-            updateChart()
+            updateChart(accel_graph)
 
     
 
