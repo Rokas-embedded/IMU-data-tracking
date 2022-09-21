@@ -29,11 +29,16 @@ accel_fig_agg = False
 accel_pltFig = False
 freq_fig_agg = False
 freq_pltFig = False
+gyro_fig_agg = False
+gyro_pltFig = False
+
 window = False
 dataSize = 1000
 frequencies = [0] * 500
+
 accel_graph = 0
 frequency_graph = 1
+gyro_graph = 2
 
 
 # Define the window layout
@@ -62,6 +67,9 @@ plot_collumn = [
     ],
     [
         sg.Canvas(key="-ACCELERATION-")
+    ],
+    [
+        sg.Canvas(key="-GYRO-")
     ],
     [
         sg.Canvas(key="-TIME FREQUENCY PLOT-")
@@ -107,13 +115,19 @@ started = False
 baud_rate = 0
 serialInst = serial.Serial()
 
-accel_x_readings_size = 500
+accel_x_readings_size = dataSize
 accel_x_readings = [0] * (accel_x_readings_size-1)
-accel_y_readings_size = 500
+accel_y_readings_size = dataSize
 accel_y_readings = [0] * (accel_y_readings_size-1)
-accel_z_readings_size = 500
+accel_z_readings_size = dataSize
 accel_z_readings = [0] * (accel_z_readings_size-1)
 
+gyro_x_readings_size = dataSize
+gyro_x_readings = [0] * (gyro_x_readings_size-1)
+gyro_y_readings_size = dataSize
+gyro_y_readings = [0] * (gyro_y_readings_size-1)
+gyro_z_readings_size = dataSize
+gyro_z_readings = [0] * (gyro_z_readings_size-1)
 
 
 def read_message(message):
@@ -121,26 +135,43 @@ def read_message(message):
     accel_y = 0
     accel_z = 0
 
-    # ACCEL, 3.44, 464.5, 46461, 
+    gyro_x = 0
+    gyro_y = 0
+    gyro_z = 0
+
+    # ACCEL,  -0.03,   0.00,   1.01, GYRO,  -0.37,  -0.01,   0.09,
     try:
         message_split = message.split(', ')
-
+        
         accel_x = float(message_split[1])
         accel_x_readings.append(accel_x)
         if(len(accel_x_readings) == accel_x_readings_size):
             accel_x_readings.pop(0) 
-        
 
         accel_y = float(message_split[2])
         accel_y_readings.append(accel_y)
         if(len(accel_y_readings) == accel_y_readings_size):
             accel_y_readings.pop(0)
 
-
         accel_z = float(message_split[3])
         accel_z_readings.append(accel_z)
         if(len(accel_z_readings) == accel_z_readings_size):
             accel_z_readings.pop(0)
+
+        gyro_x = float(message_split[5])
+        gyro_x_readings.append(gyro_x)
+        if(len(gyro_x_readings) == gyro_x_readings_size):
+            gyro_x_readings.pop(0) 
+        
+        gyro_y = float(message_split[6])
+        gyro_y_readings.append(gyro_y)
+        if(len(gyro_y_readings) == gyro_y_readings_size):
+            gyro_y_readings.pop(0)
+
+        gyro_z = float(message_split[7])
+        gyro_z_readings.append(gyro_z)
+        if(len(gyro_z_readings) == gyro_z_readings_size):
+            gyro_z_readings.pop(0)
 
     except:
         print("error serial")
@@ -176,8 +207,12 @@ def drawChart(chart):
     global freq_fig_agg
     global freq_pltFig
 
+    global gyro_fig_agg
+    global gyro_pltFig
+
     if(chart == 0):
-        accel_pltFig = plt.figure(figsize=(15, 3))
+        accel_pltFig = plt.figure(figsize=(10, 3))
+        plt.plot(accel_x_readings,label='ac_Y')
         plt.plot(accel_y_readings,label='ac_Y')
         plt.plot(accel_z_readings,label='ac_Z')
         plt.legend(loc='upper left', ncol=3)
@@ -188,15 +223,27 @@ def drawChart(chart):
         plt.grid()
         accel_fig_agg = draw_figure(window["-ACCELERATION-"].TKCanvas, accel_pltFig)
     elif(chart == 1):
-        freq_pltFig = plt.figure(figsize=(15, 3))
+        freq_pltFig = plt.figure(figsize=(10, 3))
         plt.plot(frequencies)
         plt.xlabel('Frequency')
         plt.ylabel("Power")
-        plt.xlim(0,800)
-        plt.ylim(-0.1,1)
+        plt.xlim(0,500)
+        plt.ylim(-0.1,2)
         plt.grid()
 
         freq_fig_agg = draw_figure(window["-TIME FREQUENCY PLOT-"].TKCanvas, freq_pltFig)
+    elif(chart == 2):
+        gyro_pltFig = plt.figure(figsize=(10, 3))
+        plt.plot(gyro_x_readings,label='gy_Y')
+        plt.plot(gyro_y_readings,label='gy_Y')
+        plt.plot(gyro_z_readings,label='gy_Z')
+        plt.legend(loc='upper left', ncol=3)
+        plt.xlabel('Time')
+        plt.ylabel("R/s")
+        plt.ylim(0.5,1.5)
+        plt.ylim(-20,20)
+        plt.grid()
+        gyro_fig_agg = draw_figure(window["-GYRO-"].TKCanvas, gyro_pltFig)
     
     return
 
@@ -206,6 +253,9 @@ def updateChart(chart):
 
     global freq_fig_agg
     global freq_pltFig
+
+    global gyro_fig_agg
+    global gyro_pltFig
 
     if(chart == 0):
             
@@ -230,21 +280,43 @@ def updateChart(chart):
         plt.plot(frequencies)
         plt.xlabel('Frequency')
         plt.ylabel("Power")
-        plt.xlim(0,800)
-        plt.ylim(-0.1,1)
+        plt.xlim(0,500)
+        plt.ylim(-0.1,2)
         plt.grid()
 
         freq_pltFig.canvas.draw()
+    elif(chart == 2):
+            
+        # Redrawing the plots works very good
+        plt.figure(gyro_pltFig.number)
+        plt.clf()
+        plt.plot(gyro_x_readings,label='gy_Y')
+        plt.plot(gyro_y_readings,label='gy_Y')
+        plt.plot(gyro_z_readings,label='gy_Z')
+        plt.legend(loc='upper left', ncol=3)
+        plt.xlabel('Time')
+        plt.ylabel("R/s")
+        plt.ylim(-20,20)
+        # plt.ylim(0.5,1.5)
+        plt.grid()
+        gyro_pltFig.canvas.draw()
 
 def make_frequency_graph():
+    # global frequencies
+    # frequencies = copy.deepcopy(accel_z_readings)
+    # frequencies = np.abs(scipy.fft.fft(frequencies))**2
+    # updateChart(frequency_graph)
+
     global frequencies
-    frequencies = copy.deepcopy(accel_z_readings)
+    frequencies = copy.deepcopy(gyro_z_readings)
     frequencies = np.abs(scipy.fft.fft(frequencies))**2
     updateChart(frequency_graph)
 
 
+
 drawChart(accel_graph)
 drawChart(frequency_graph)
+drawChart(gyro_graph)
 
 # Run the Event Loop
 while True:
@@ -309,6 +381,8 @@ while True:
             while serialInst.in_waiting:
                 read_message(serialInst.readline().decode('utf'))
             updateChart(accel_graph)
+            updateChart(gyro_graph)
+
 
     
 
