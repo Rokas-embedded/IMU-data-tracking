@@ -1,29 +1,23 @@
 from asyncio.windows_events import NULL
-from dataclasses import dataclass
-import json
 from msilib.schema import Error
 from pickle import FALSE
 from tkinter import W
-from tkinter.ttk import Style
-from turtle import update
 import numpy as np
 import PySimpleGUI as sg
-import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from matplotlib import style
 import threading
 from random import randint
 import time
 import serial.tools.list_ports
-import json 
 import numpy as np
 import matplotlib.pyplot as plt
-import scipy.io as sio
-from scipy import signal
-from matplotlib.pyplot import figure
 import scipy
 import copy
+from sympy import * 
+q, k = symbols('q, k')
+import matplotlib.pyplot as plt
+import numpy as np
 
 accel_fig_agg = False
 accel_pltFig = False
@@ -145,6 +139,21 @@ mag_z_readings_size = dataSize
 mag_z_readings = [0] * (mag_z_readings_size-1)
 
 
+north_x_readings_size = dataSize
+north_x_readings = [0] * (north_x_readings_size-1)
+north_y_readings_size = dataSize
+north_y_readings = [0] * (north_y_readings_size-1)
+north_z_readings_size = dataSize
+north_z_readings = [0] * (north_z_readings_size-1)
+
+def vector_length(vector):
+    sum = 0
+    for i in range(vector.shape[0]):
+        sum += vector[i]**2 
+    
+    return sqrt(sum)
+    
+
 def read_message(message):
     accel_x = 0
     accel_y = 0
@@ -158,6 +167,9 @@ def read_message(message):
     mag_y = 0
     mag_z = 0
 
+    north_x = 0
+    north_y = 0
+    north_z = 0
     # ACCEL,  -0.03,   0.00,   1.01, GYRO,  -0.37,  -0.01,   0.09, MAG,   0.35,   0.13,   0.04,
     try:
         message_split = message.split(', ')
@@ -208,6 +220,60 @@ def read_message(message):
         mag_z_readings.append(mag_z)
         if(len(mag_z_readings) == mag_z_readings_size):
             mag_z_readings.pop(0)
+
+
+        north_x = float(message_split[13])
+        north_x_readings.append(north_x)
+        if(len(north_x_readings) == north_x_readings_size):
+            north_x_readings.pop(0) 
+        
+        north_y = float(message_split[14])
+        north_y_readings.append(north_y)
+        if(len(north_y_readings) == north_y_readings_size):
+            north_y_readings.pop(0)
+
+        north_z = float(message_split[15])
+        north_z_readings.append(north_z)
+        if(len(north_z_readings) == north_z_readings_size):
+            north_z_readings.pop(0)
+
+
+        # M_list = [mag_x, mag_y, mag_z]
+        # A_list = [accel_x, accel_y, accel_z]
+
+        # M_list = [6.29, -14.48, -45.74]
+        # A_list = [-0.02,   0.00,   1.01]
+
+        # print("A, {}, {}, {}".format(A_list[0], A_list[1], A_list[2]))
+        # print("M, {}, {}, {}".format(M_list[0], M_list[1], M_list[2]))
+
+        # A = np.array(A_list)
+        # A_unit = A / np.sqrt(np.sum(A**2))
+        # print("A_unit, {}, {}, {}".format(A_unit[0], A_unit[1], A_unit[2]))
+
+        # M = np.array(M_list)
+        # M_unit = M / np.sqrt(np.sum(M**2))
+        # print("M_unit, {}, {}, {}".format(M_unit[0], M_unit[1], M_unit[2]))
+
+        # D = -A_unit
+        # print("D, {}, {}, {}".format(D[0], D[1], D[2]))
+
+        # E = np.cross(D, M_unit)
+        # print("E, {}, {}, {}".format(E[0], E[1], E[2]))
+
+        # E_unit = E / np.sqrt(np.sum(E**2))
+        # print("E_unit, {}, {}, {}".format(E_unit[0], E_unit[1], E_unit[2]))
+
+        # N = np.cross(E_unit, D)
+        # print("N, {}, {}, {}".format(N[0], N[1], N[2]))
+
+        # N_unit = N / np.sqrt(np.sum(N**2))
+        # print("N_unit, {}, {}, {}".format(N_unit[0], N_unit[1], N_unit[2]))
+
+        # north_x_readings.append(N_unit[0])
+        # north_y_readings.append(N_unit[1])
+        # north_z_readings.append(N_unit[2])
+
 
     except:
         print("error serial")
@@ -285,15 +351,21 @@ def drawChart(chart):
     elif(chart == 3):
         mag_pltFig = plt.figure(figsize=(4, 4))
         
-        plt.scatter(mag_x_readings, mag_y_readings, label='mag_Y')
+        plt.scatter(mag_x_readings, mag_y_readings, label='mag')
+        plt.scatter(north_x_readings, north_y_readings, label='north')
+
         # plt.plot(mag_x_readings,label='mag_X')
         # plt.plot(mag_y_readings,label='mag_Y')
         # plt.plot(mag_z_readings,label='mag_Z')
         plt.legend(loc='upper left', ncol=3)
-        plt.xlabel('Time')
-        plt.ylabel("Gauss")
-        plt.xlim(-200,200)
-        plt.ylim(-200,200)
+        plt.xlabel('x')
+        plt.ylabel("y")
+        # plt.xlim(-200,200)
+        # plt.ylim(-200,200)
+
+        plt.xlim(-2,2)
+        plt.ylim(-2,2)
+
 
         plt.grid()
         mag_fig_agg = draw_figure(window["-MAG-"].TKCanvas, mag_pltFig)
@@ -358,17 +430,18 @@ def updateChart(chart):
         plt.figure(mag_pltFig.number)
         plt.clf()
         plt.scatter(mag_x_readings, mag_y_readings, label='mag_Y')
+        plt.scatter(north_x_readings, north_y_readings, label='north')
 
         # plt.plot(mag_x_readings,label='mag_X')
         # plt.plot(mag_y_readings,label='mag_Y')
         # plt.plot(mag_z_readings,label='mag_Z')
         plt.legend(loc='upper left', ncol=3)
-        plt.xlabel('Time')
-        plt.ylabel("Gauss")
-        # plt.xlim(-16000,16000)
-        # plt.ylim(-16000,16000)
-        plt.xlim(-200,200)
-        plt.ylim(-200,200)
+        plt.xlabel('x')
+        plt.ylabel("y")
+        # plt.xlim(-200,200)
+        # plt.ylim(-200,200)
+        plt.xlim(-2,2)
+        plt.ylim(-2,2)
         plt.grid()
         mag_pltFig.canvas.draw()
 
@@ -451,7 +524,13 @@ while True:
         
         if(started):
             while serialInst.in_waiting:
-                read_message(serialInst.readline().decode('utf'))
+                try:
+                    read_message(serialInst.readline().decode('utf'))
+                except:
+                    try:
+                        serialInst.open()
+                    except:
+                        print("Fuck it move on")
             updateChart(accel_graph)
             updateChart(gyro_graph)
             updateChart(mag_graph)
